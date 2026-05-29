@@ -2,6 +2,9 @@ import yfinance as yf
 import smtplib
 import pytz
 import os
+import json
+import pandas as pd
+import requests
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -9,43 +12,64 @@ from email.mime.multipart import MIMEMultipart
 EMAIL_SENDER    = "bharatsariya369@gmail.com"
 EMAIL_PASSWORD  = os.environ["EMAIL_PASSWORD"]
 EMAIL_RECIPIENT = "bharatsariya369@gmail.com"
-
 IST = pytz.timezone("Asia/Kolkata")
 
-STOCKS = [
-    "RELIANCE.NS","TCS.NS","HDFCBANK.NS","INFY.NS","ICICIBANK.NS",
-    "HINDUNILVR.NS","SBIN.NS","BHARTIARTL.NS","ITC.NS","KOTAKBANK.NS",
-    "LT.NS","AXISBANK.NS","ASIANPAINT.NS","MARUTI.NS","TITAN.NS",
-    "SUNPHARMA.NS","WIPRO.NS","BAJFINANCE.NS","TATASTEEL.NS","TATAMOTORS.NS",
-    "ADANIENT.NS","ONGC.NS","POWERGRID.NS","NTPC.NS","JSWSTEEL.NS",
-    "TECHM.NS","HCLTECH.NS","DRREDDY.NS","CIPLA.NS","INDUSINDBK.NS",
-    "COALINDIA.NS","BPCL.NS","IOC.NS","GAIL.NS","BAJAJFINSV.NS",
-    "EICHERMOT.NS","HEROMOTOCO.NS","BRITANNIA.NS","NESTLEIND.NS","DIVISLAB.NS"
-]
+def get_all_nse_stocks():
+    """Fetch complete NSE stock list from NSE India"""
+    try:
+        url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        df = pd.read_csv(url, storage_options={"User-Agent": "Mozilla/5.0"})
+        symbols = [s.strip() + ".NS" for s in df["SYMBOL"].tolist()]
+        print(f"Total NSE stocks loaded: {len(symbols)}")
+        return symbols
+    except Exception as e:
+        print(f"Error fetching NSE list: {e}")
+        # Fallback to large list
+        return [
+            "RELIANCE.NS","TCS.NS","HDFCBANK.NS","INFY.NS","ICICIBANK.NS",
+            "HINDUNILVR.NS","SBIN.NS","BHARTIARTL.NS","ITC.NS","KOTAKBANK.NS",
+            "LT.NS","AXISBANK.NS","ASIANPAINT.NS","MARUTI.NS","TITAN.NS",
+            "SUNPHARMA.NS","WIPRO.NS","BAJFINANCE.NS","TATASTEEL.NS",
+            "ADANIENT.NS","ONGC.NS","POWERGRID.NS","NTPC.NS","JSWSTEEL.NS",
+            "TECHM.NS","HCLTECH.NS","DRREDDY.NS","CIPLA.NS","INDUSINDBK.NS",
+            "COALINDIA.NS","BPCL.NS","IOC.NS","GAIL.NS","BAJAJFINSV.NS"
+        ]
 
-def get_volume_gainers():
+def get_volume_gainers(symbols):
     results = {}
-    data = yf.download(
-        " ".join(STOCKS),
-        period="2d",
-        interval="1d",
-        group_by="ticker",
-        auto_adjust=True,
-        progress=False
-    )
-    for sym in STOCKS:
+    chunk_size = 50
+    total = len(symbols)
+    print(f"Scanning {total} stocks...")
+
+    for i in range(0, total, chunk_size):
+        chunk = symbols[i:i+chunk_size]
         try:
-            df = data[sym].dropna()
-            if len(df) < 2:
-                continue
-            today = df.iloc[-1]
-            prev  = df.iloc[-2]
-            vol_ratio = today["Volume"] / prev["Volume"] if prev["Volume"] > 0 else 0
-            pchange   = ((today["Close"] - prev["Close"]) / prev["Close"]) * 100
-            if vol_ratio >= 1.5 and pchange > 0:
-                results[sym.replace(".NS","")] = round(float(pchange), 2)
-        except:
-            pass
+            data = yf.download(
+                " ".join(chunk),
+                period="2d",
+                interval="1d",
+                group_by="ticker",
+                auto_adjust=True,
+                progress=False,
+                threads=True
+            )
+            for sym in chunk:
+                try:
+                    df = data[sym].dropna() if len(chunk) > 1 else data.dropna()
+                    if len(df) < 2:
+                        continue
+                    today = df.iloc[-1]
+                    prev  = df.iloc[-2]
+                    vol_ratio = today["Volume"] / prev["Volume"] if prev["Volume"] > 0 else 0
+                    pchange   = ((today["Close"] - prev["Close"]) / prev["Close"]) * 100
+                    if vol_ratio >= 2.0 and pchange > 0:
+                        results[sym.replace(".NS","")] = round(float(pchange), 2)
+                except:
+                    pass
+        except Exception as e:
+            print(f"Chunk error: {e}")
+
     print(f"Volume gainers found: {len(results)}")
     return results
 
@@ -94,24 +118,26 @@ def send_email(results):
         s.sendmail(EMAIL_SENDER, EMAIL_RECIPIENT, msg.as_string())
     print("Email sent!")
 
-# Load saved morning data
-import json
-
 SCAN_TYPE = os.environ.get("SCAN_TYPE", "morning")
 DATA_FILE = "morning_data.json"
+symbols = get_all_nse_stocks()
 
 if SCAN_TYPE == "morning":
     print("Running MORNING scan...")
-    data = get_volume_gainers()
+    data = get_volume_gainers(symbols)
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
     print("Morning data saved.")
 
 elif SCAN_TYPE == "evening":
     print("Running EVENING scan...")
-    with open(DATA_FILE, "r") as f:
-        morning_data = json.load(f)
-    evening_data = get_volume_gainers()
+    try:
+        with open(DATA_FILE, "r") as f:
+            morning_data = json.load(f)
+    except:
+        print("No morning data found!")
+        exit()
+    evening_data = get_volume_gainers(symbols)
     common = set(morning_data.keys()) & set(evening_data.keys())
     results = []
     for sym in common:
