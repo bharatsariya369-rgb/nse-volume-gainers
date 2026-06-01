@@ -142,7 +142,7 @@ elif SCAN_TYPE == "evening":
     results = []
     for sym in common:
         diff = evening_data[sym] - morning_data[sym]
-        if diff > 0:
+        if diff >= 0:
             results.append({
                 "symbol":  sym,
                 "morning": morning_data[sym],
