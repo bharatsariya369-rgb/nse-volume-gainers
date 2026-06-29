@@ -135,7 +135,7 @@ elif SCAN_TYPE == "evening":
         m_chg = morning_data[sym]
         e_chg = evening_data[sym]
         diff = e_chg - m_chg
-        if diff > 0:
+        if diff ≥ 0:
             results.append({
                 "symbol":  sym,
                 "morning": m_chg,
