@@ -79,7 +79,7 @@ def get_nse_data():
         reverse=True
     )
 
-    return stocks
+    return stocks[:25]
 
 
 def send_email(df):
@@ -171,11 +171,9 @@ else:
 
         evening_lookup[stock["symbol"]] = stock
 
-    print("Morning symbols:", list(morning_data.keys())[:10])
-print("Evening symbols:", list(evening_lookup.keys())[:10])
-print("Morning count:", len(morning_data))
-print("Evening count:", len(evening_lookup))
-for symbol, morning in morning_data.items():
+    rows = []
+
+    for symbol, morning in morning_data.items():
 
         if symbol not in evening_lookup:
             continue
@@ -225,7 +223,8 @@ for symbol, morning in morning_data.items():
 
     if not rows:
 
-        print("Rows found:", len(rows))
+        print("No matching stocks found")
+        exit()
 
     df = pd.DataFrame(rows)
 
