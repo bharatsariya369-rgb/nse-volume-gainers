@@ -190,7 +190,7 @@ else:
             evening_volume - morning_volume
         )
 
-        if morning_price > 0:
+        if morning_price >= 0:
 
             price_change = (
                 (
