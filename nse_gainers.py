@@ -1,4 +1,6 @@
 import requests
+import json
+import os
 
 session = requests.Session()
 
@@ -22,5 +24,13 @@ response = session.get(
     timeout=30
 )
 
-print("Status:", response.status_code)
-print(response.text[:1000])
+data = response.json()
+
+scan_type = os.getenv("SCAN_TYPE", "morning")
+
+if scan_type == "morning":
+
+    with open("morning_data.json", "w") as f:
+        json.dump(data, f)
+
+    print("Morning data saved.")
