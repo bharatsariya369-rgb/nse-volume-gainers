@@ -1,16 +1,26 @@
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-import time
+import requests
 
-options = Options()
-options.add_argument("--start-maximized")
+session = requests.Session()
 
-driver = webdriver.Chrome(options=options)
+headers = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json",
+    "Referer": "https://www.nseindia.com/"
+}
 
-driver.get("https://www.nseindia.com/market-data/volume-gainers-spurts")
+session.get(
+    "https://www.nseindia.com/",
+    headers=headers,
+    timeout=30
+)
 
-time.sleep(10)
+url = "https://www.nseindia.com/api/live-analysis-volume-gainers"
 
-print(driver.page_source[:1000])
+response = session.get(
+    url,
+    headers=headers,
+    timeout=30
+)
 
-driver.quit()
+print("Status:", response.status_code)
+print(response.text[:1000])
