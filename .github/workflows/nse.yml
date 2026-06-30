@@ -27,7 +27,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install yfinance pytz
+        run: pip install requests pandas openpyxl pytz
 
       - name: Restore morning data cache
         uses: actions/cache@v3
