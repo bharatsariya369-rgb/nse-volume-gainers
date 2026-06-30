@@ -3,7 +3,6 @@ import json
 import os
 import smtplib
 import pandas as pd
-from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -14,7 +13,10 @@ EMAIL_RECIPIENT = "bharatsariya369@gmail.com"
 SCAN_TYPE = os.environ.get("SCAN_TYPE", "morning")
 DATA_FILE = "morning_data.json"
 
-def get_nse_volume_data():
+NSE_URL = "https://www.nseindia.com/api/live-analysis-volume-gainers"
+
+
+def get_nse_data():
 
     session = requests.Session()
 
@@ -31,130 +33,211 @@ def get_nse_volume_data():
     )
 
     response = session.get(
-        "https://www.nseindia.com/api/live-analysis-volume-gainers",
+        NSE_URL,
         headers=headers,
         timeout=30
     )
 
-    data = response.json()
+    response.raise_for_status()
 
-    results = {}
+    raw = response.json()
 
-    for stock in data["data"]:
+    stocks = []
 
-        symbol = stock.get("symbol")
+    for item in raw.get("data", []):
+
+        symbol = item.get("symbol")
 
         volume = (
-            stock.get("todayVolume")
-            or stock.get("volume")
+            item.get("todayVolume")
+            or item.get("volume")
             or 0
         )
 
-        if symbol and volume:
-            results[symbol] = volume
+        price = (
+            item.get("ltp")
+            or item.get("lastPrice")
+            or item.get("closePrice")
+            or 0
+        )
 
-    return results
+        try:
+            volume = float(str(volume).replace(",", ""))
+            price = float(str(price).replace(",", ""))
+        except:
+            continue
+
+        stocks.append({
+            "symbol": symbol,
+            "volume": volume,
+            "price": price
+        })
+
+    stocks = sorted(
+        stocks,
+        key=lambda x: x["volume"],
+        reverse=True
+    )
+
+    return stocks[:25]
 
 
 def send_email(df):
 
-    html = df.to_html(index=False)
+    html_table = df.to_html(index=False)
 
-    msg = MIMEMultipart("alternative")
-
-    msg["Subject"] = "NSE Volume Growth Report"
-    msg["From"] = EMAIL_SENDER
-    msg["To"] = EMAIL_RECIPIENT
-
-    body = f"""
+    html = f"""
     <html>
     <body>
-    <h2>NSE Volume Growth Report</h2>
-    {html}
+        <h2>NSE Top 25 Volume Tracker</h2>
+
+        <p>
+        Stocks that remained in the morning list and their
+        volume increase till market close.
+        </p>
+
+        {html_table}
+
     </body>
     </html>
     """
 
-    msg.attach(MIMEText(body, "html"))
+    msg = MIMEMultipart("alternative")
+
+    msg["Subject"] = "NSE Volume Difference Report"
+    msg["From"] = EMAIL_SENDER
+    msg["To"] = EMAIL_RECIPIENT
+
+    msg.attach(MIMEText(html, "html"))
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+        server.login(
+            EMAIL_SENDER,
+            EMAIL_PASSWORD
+        )
+
         server.sendmail(
             EMAIL_SENDER,
             EMAIL_RECIPIENT,
             msg.as_string()
         )
 
-    print("Email sent")
+    print("Email sent successfully")
 
 
 if SCAN_TYPE == "morning":
 
-    morning_data = get_nse_volume_data()
+    print("Running MORNING scan...")
+
+    morning_stocks = get_nse_data()
+
+    morning_data = {}
+
+    for stock in morning_stocks:
+
+        morning_data[stock["symbol"]] = {
+            "volume": stock["volume"],
+            "price": stock["price"]
+        }
 
     with open(DATA_FILE, "w") as f:
         json.dump(morning_data, f)
 
-    print("Morning data saved")
+    print(
+        f"Morning data saved ({len(morning_data)} stocks)"
+    )
 
 
 else:
 
+    print("Running EVENING scan...")
+
     try:
+
         with open(DATA_FILE, "r") as f:
             morning_data = json.load(f)
 
-    except Exception:
+    except Exception as e:
+
         print("Morning data not found")
+        print(e)
         exit()
 
-    evening_data = get_nse_volume_data()
+    evening_stocks = get_nse_data()
+
+    evening_lookup = {}
+
+    for stock in evening_stocks:
+
+        evening_lookup[stock["symbol"]] = stock
 
     rows = []
 
-    common = (
-        set(morning_data.keys())
-        & set(evening_data.keys())
-    )
+    for symbol, morning in morning_data.items():
 
-    for symbol in common:
-
-        morning_volume = morning_data[symbol]
-        evening_volume = evening_data[symbol]
-
-        if morning_volume <= 0:
+        if symbol not in evening_lookup:
             continue
 
-        growth = (
-            (evening_volume - morning_volume)
-            / morning_volume
-        ) * 100
+        evening = evening_lookup[symbol]
 
-        if growth > 0:
+        morning_volume = morning["volume"]
+        evening_volume = evening["volume"]
 
-            rows.append({
-                "Symbol": symbol,
-                "10AM Volume": morning_volume,
-                "3PM Volume": evening_volume,
-                "Growth %": round(growth, 2)
-            })
+        morning_price = morning["price"]
+        evening_price = evening["price"]
+
+        volume_difference = (
+            evening_volume - morning_volume
+        )
+
+        if morning_price > 0:
+
+            price_change = (
+                (
+                    evening_price
+                    - morning_price
+                )
+                / morning_price
+            ) * 100
+
+        else:
+
+            price_change = 0
+
+        rows.append({
+
+            "Stock": symbol,
+
+            "10 AM Volume":
+                int(morning_volume),
+
+            "3 PM Volume":
+                int(evening_volume),
+
+            "Volume Difference":
+                int(volume_difference),
+
+            "Price Change %":
+                round(price_change, 2)
+        })
+
+    if not rows:
+
+        print("No matching stocks found")
+        exit()
 
     df = pd.DataFrame(rows)
 
-    if len(df) == 0:
-        print("No stocks found")
-        exit()
-
     df = df.sort_values(
-        "Growth %",
+        "Volume Difference",
         ascending=False
     )
 
     df.to_excel(
-        "volume_growth_report.xlsx",
+        "volume_report.xlsx",
         index=False
     )
 
-    send_email(df)
+    print(df)
 
-    print(df.head(20))
+    send_email(df)
