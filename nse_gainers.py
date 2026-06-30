@@ -4,6 +4,7 @@ import pytz
 import os
 import json
 import pandas as pd
+import requests
 from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -14,22 +15,32 @@ EMAIL_RECIPIENT = "bharatsariya369@gmail.com"
 IST = pytz.timezone("Asia/Kolkata")
 
 def get_all_nse_stocks():
+    """Fetch complete NSE stock list from NSE India"""
     try:
         url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
+        headers = {"User-Agent": "Mozilla/5.0"}
         df = pd.read_csv(url, storage_options={"User-Agent": "Mozilla/5.0"})
         symbols = [s.strip() + ".NS" for s in df["SYMBOL"].tolist()]
         print(f"Total NSE stocks loaded: {len(symbols)}")
         return symbols
     except Exception as e:
         print(f"Error fetching NSE list: {e}")
-        return ["RELIANCE.NS","TCS.NS","HDFCBANK.NS","INFY.NS","ICICIBANK.NS"]
+        # Fallback to large list
+        return [
+            "RELIANCE.NS","TCS.NS","HDFCBANK.NS","INFY.NS","ICICIBANK.NS",
+            "HINDUNILVR.NS","SBIN.NS","BHARTIARTL.NS","ITC.NS","KOTAKBANK.NS",
+            "LT.NS","AXISBANK.NS","ASIANPAINT.NS","MARUTI.NS","TITAN.NS",
+            "SUNPHARMA.NS","WIPRO.NS","BAJFINANCE.NS","TATASTEEL.NS",
+            "ADANIENT.NS","ONGC.NS","POWERGRID.NS","NTPC.NS","JSWSTEEL.NS",
+            "TECHM.NS","HCLTECH.NS","DRREDDY.NS","CIPLA.NS","INDUSINDBK.NS",
+            "COALINDIA.NS","BPCL.NS","IOC.NS","GAIL.NS","BAJAJFINSV.NS"
+        ]
 
-def get_current_pchange(symbols):
-    """Fetch CURRENT % change (from previous close) for all stocks RIGHT NOW."""
+def get_volume_gainers(symbols):
     results = {}
     chunk_size = 50
     total = len(symbols)
-    print(f"Scanning {total} stocks for current % change...")
+    print(f"Scanning {total} stocks...")
 
     for i in range(0, total, chunk_size):
         chunk = symbols[i:i+chunk_size]
@@ -50,14 +61,16 @@ def get_current_pchange(symbols):
                         continue
                     today = df.iloc[-1]
                     prev  = df.iloc[-2]
-                    pchange = ((today["Close"] - prev["Close"]) / prev["Close"]) * 100
-                    results[sym.replace(".NS","")] = round(float(pchange), 2)
+                    vol_ratio = today["Volume"] / prev["Volume"] if prev["Volume"] > 0 else 0
+                    pchange   = ((today["Close"] - prev["Close"]) / prev["Close"]) * 100
+                    if vol_ratio >= 2.0 and pchange > 0:
+                        results[sym.replace(".NS","")] = round(float(pchange), 2)
                 except:
                     pass
         except Exception as e:
             print(f"Chunk error: {e}")
 
-    print(f"Stocks with data: {len(results)}")
+    print(f"Volume gainers found: {len(results)}")
     return results
 
 def send_email(results):
@@ -90,7 +103,7 @@ def send_email(results):
                 <tbody>{rows}</tbody>
             </table>
             <p style="color:#999;font-size:12px;margin-top:20px">
-                Total: <b>{len(results)}</b> stocks | 3:10 PM IST
+                Total: <b>{len(results)}</b> stocks | 3:15 PM IST
             </p>
         </div>
     </div>
@@ -111,35 +124,29 @@ symbols = get_all_nse_stocks()
 
 if SCAN_TYPE == "morning":
     print("Running MORNING scan...")
-    data = get_current_pchange(symbols)
+    data = get_volume_gainers(symbols)
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
-    print(f"Morning data saved: {len(data)} stocks")
+    print("Morning data saved.")
 
 elif SCAN_TYPE == "evening":
     print("Running EVENING scan...")
     try:
         with open(DATA_FILE, "r") as f:
             morning_data = json.load(f)
-        print(f"Morning data loaded: {len(morning_data)} stocks")
     except:
         print("No morning data found!")
         exit()
-
-    evening_data = get_current_pchange(symbols)
+    evening_data = get_volume_gainers(symbols)
     common = set(morning_data.keys()) & set(evening_data.keys())
-    print(f"Common stocks: {len(common)}")
-
     results = []
     for sym in common:
-        m_chg = morning_data[sym]
-        e_chg = evening_data[sym]
-        diff = e_chg - m_chg
+        diff = evening_data[sym] - morning_data[sym]
         if diff > 0:
             results.append({
                 "symbol":  sym,
-                "morning": m_chg,
-                "evening": e_chg,
+                "morning": morning_data[sym],
+                "evening": evening_data[sym],
                 "diff":    round(diff, 2)
             })
     results.sort(key=lambda x: x["diff"], reverse=True)
