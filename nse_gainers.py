@@ -79,7 +79,7 @@ def get_nse_data():
         reverse=True
     )
 
-    return stocks:[25]
+    return stocks
 
 
 def send_email(df):
