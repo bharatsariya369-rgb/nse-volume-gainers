@@ -11,7 +11,7 @@ EMAIL_PASSWORD = os.environ["EMAIL_PASSWORD"]
 EMAIL_RECIPIENT = "bharatsariya369@gmail.com"
 
 SCAN_TYPE = os.environ.get("SCAN_TYPE", "morning")
-DATA_FILE = "morning_data.json"
+DATA_FILE = "morning_data_v2.json"
 
 NSE_URL = "https://www.nseindia.com/api/live-analysis-volume-gainers"
 
