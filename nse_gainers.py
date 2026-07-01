@@ -227,8 +227,7 @@ print("Evening count:", len(evening_lookup))
 
     if not rows:
 
-        print("No matching stocks found")
-        exit()
+        print("Rows found:", len(rows))
 
     df = pd.DataFrame(rows)
 
