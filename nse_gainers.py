@@ -227,7 +227,7 @@ for symbol, morning in morning_data.items():
 
     if not rows:
 
-        print("Rows found:", len(rows))
+    print("Rows found:", len(rows))
 
     df = pd.DataFrame(rows)
 
