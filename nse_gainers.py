@@ -172,6 +172,10 @@ else:
         evening_lookup[stock["symbol"]] = stock
 
     rows = []
+print("Morning symbols:", list(morning_data.keys())[:10])
+print("Evening symbols:", list(evening_lookup.keys())[:10])
+print("Morning count:", len(morning_data))
+print("Evening count:", len(evening_lookup))
 
     for symbol, morning in morning_data.items():
 
