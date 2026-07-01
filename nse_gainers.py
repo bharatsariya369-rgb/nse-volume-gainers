@@ -171,13 +171,14 @@ else:
 
         evening_lookup[stock["symbol"]] = stock
 
-    rows = []
-print("Morning symbols:", list(morning_data.keys())[:10])
-print("Evening symbols:", list(evening_lookup.keys())[:10])
-print("Morning count:", len(morning_data))
-print("Evening count:", len(evening_lookup))
+        rows = []
 
-for symbol, morning in morning_data.items():
+    print("Morning symbols:", list(morning_data.keys())[:10])
+    print("Evening symbols:", list(evening_lookup.keys())[:10])
+    print("Morning count:", len(morning_data))
+    print("Evening count:", len(evening_lookup))
+
+    for symbol, morning in morning_data.items():
 
         if symbol not in evening_lookup:
             continue
@@ -190,44 +191,29 @@ for symbol, morning in morning_data.items():
         morning_price = morning["price"]
         evening_price = evening["price"]
 
-        volume_difference = (
-            evening_volume - morning_volume
-        )
+        volume_difference = evening_volume - morning_volume
 
-        if morning_price >= 0:
-
+        if morning_price > 0:
             price_change = (
-                (
-                    evening_price
-                    - morning_price
-                )
+                (evening_price - morning_price)
                 / morning_price
             ) * 100
-
         else:
-
             price_change = 0
 
         rows.append({
-
             "Stock": symbol,
-
-            "10 AM Volume":
-                int(morning_volume),
-
-            "3 PM Volume":
-                int(evening_volume),
-
-            "Volume Difference":
-                int(volume_difference),
-
-            "Price Change %":
-                round(price_change, 2)
+            "10 AM Volume": int(morning_volume),
+            "3 PM Volume": int(evening_volume),
+            "Volume Difference": int(volume_difference),
+            "Price Change %": round(price_change, 2)
         })
 
-    if not rows:
-
     print("Rows found:", len(rows))
+
+    if len(rows) == 0:
+        print("No matching stocks found")
+        exit()
 
     df = pd.DataFrame(rows)
 
