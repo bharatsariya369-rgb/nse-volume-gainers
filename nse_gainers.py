@@ -154,8 +154,8 @@ else:
 
     try:
 
-        with open(DATA_FILE, "r") as f:
-        morning_data = json.load(f)
+    with open(DATA_FILE, "r") as f:
+    morning_data = json.load(f)
 
     if "data" in morning_data:
         morning_data = morning_data["data"]
