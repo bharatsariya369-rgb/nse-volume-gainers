@@ -79,25 +79,16 @@ def get_nse_data():
         reverse=True
     )
 
-    return stocks
+    return stocks[:25]
 
 
 def send_email(df):
 
-    html_table = df.to_html(index=False)
-
     html = f"""
     <html>
     <body>
-        <h2>NSE Top 25 Volume Tracker</h2>
-
-        <p>
-        Stocks that remained in the morning list and their
-        volume increase till market close.
-        </p>
-
-        {html_table}
-
+        <h2>NSE Volume Gainers Report</h2>
+        {df.to_html(index=False)}
     </body>
     </html>
     """
@@ -111,6 +102,7 @@ def send_email(df):
     msg.attach(MIMEText(html, "html"))
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+
         server.login(
             EMAIL_SENDER,
             EMAIL_PASSWORD
@@ -125,15 +117,17 @@ def send_email(df):
     print("Email sent successfully")
 
 
+# ---------------- MORNING ---------------- #
+
 if SCAN_TYPE == "morning":
 
     print("Running MORNING scan...")
 
-    morning_stocks = get_nse_data()
+    stocks = get_nse_data()
 
     morning_data = {}
 
-    for stock in morning_stocks:
+    for stock in stocks:
 
         morning_data[stock["symbol"]] = {
             "volume": stock["volume"],
@@ -143,38 +137,37 @@ if SCAN_TYPE == "morning":
     with open(DATA_FILE, "w") as f:
         json.dump(morning_data, f)
 
-    print(
-        f"Morning data saved ({len(morning_data)} stocks)"
-    )
+    print(f"Morning data saved ({len(morning_data)} stocks)")
 
+
+# ---------------- EVENING ---------------- #
 
 else:
 
     print("Running EVENING scan...")
 
-try:
-    with open(DATA_FILE, "r") as f:
-        morning_data = json.load(f)
+    try:
 
-except Exception as e:
-    print("Morning data not found")
-    print(e)
-    exit()
+        with open(DATA_FILE, "r") as f:
+            morning_data = json.load(f)
+
+    except Exception as e:
+
+        print("Morning data not found")
+        print(e)
+        exit()
 
     evening_stocks = get_nse_data()
 
     evening_lookup = {}
 
     for stock in evening_stocks:
-
         evening_lookup[stock["symbol"]] = stock
 
-        rows = []
-
-    print("Morning symbols:", list(morning_data.keys())[:10])
-    print("Evening symbols:", list(evening_lookup.keys())[:10])
     print("Morning count:", len(morning_data))
     print("Evening count:", len(evening_lookup))
+
+    rows = []
 
     for symbol, morning in morning_data.items():
 
@@ -189,27 +182,43 @@ except Exception as e:
         morning_price = morning["price"]
         evening_price = evening["price"]
 
-        volume_difference = evening_volume - morning_volume
+        volume_difference = (
+            evening_volume - morning_volume
+        )
 
         if morning_price > 0:
+
             price_change = (
                 (evening_price - morning_price)
                 / morning_price
             ) * 100
+
         else:
+
             price_change = 0
 
         rows.append({
+
             "Stock": symbol,
-            "10 AM Volume": int(morning_volume),
-            "3 PM Volume": int(evening_volume),
-            "Volume Difference": int(volume_difference),
-            "Price Change %": round(price_change, 2)
+
+            "Morning Volume":
+                int(morning_volume),
+
+            "Evening Volume":
+                int(evening_volume),
+
+            "Volume Difference":
+                int(volume_difference),
+
+            "Price Change %":
+                round(price_change, 2)
+
         })
 
     print("Rows found:", len(rows))
 
     if len(rows) == 0:
+
         print("No matching stocks found")
         exit()
 
