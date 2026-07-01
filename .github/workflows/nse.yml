@@ -32,9 +32,8 @@ jobs:
       - name: Restore morning data cache
         uses: actions/cache@v3
         with:
-          path: morning_data.json
-          key: morning-data
-
+          path: morning_data_v2.json
+          key: morning-data-v2
       - name: Run scan
         env:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
@@ -45,5 +44,5 @@ jobs:
         if: env.SCAN_TYPE == 'morning' || github.event.inputs.scan_type == 'morning'
         uses: actions/cache@v3
         with:
-          path: morning_data.json
-          key: morning-data
+          path: morning_data_v2.json
+          key: morning-data-v2
