@@ -13,74 +13,6 @@ EMAIL_RECIPIENT = "bharatsariya369@gmail.com"
 SCAN_TYPE = os.environ.get("SCAN_TYPE", "morning")
 DATA_FILE = "morning_data_v2.json"
 
-NSE_URL = "https://www.nseindia.com/api/live-analysis-volume-gainers"
-
-
-def get_nse_data():
-
-    session = requests.Session()
-
-    headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Accept": "application/json",
-        "Referer": "https://www.nseindia.com/"
-    }
-
-    session.get(
-        "https://www.nseindia.com/",
-        headers=headers,
-        timeout=30
-    )
-
-    response = session.get(
-        NSE_URL,
-        headers=headers,
-        timeout=30
-    )
-
-    response.raise_for_status()
-
-    raw = response.json()
-
-    stocks = []
-
-    for item in raw.get("data", []):
-
-        symbol = item.get("symbol")
-
-        volume = (
-            item.get("todayVolume")
-            or item.get("volume")
-            or 0
-        )
-
-        price = (
-            item.get("ltp")
-            or item.get("lastPrice")
-            or item.get("closePrice")
-            or 0
-        )
-
-        try:
-            volume = float(str(volume).replace(",", ""))
-            price = float(str(price).replace(",", ""))
-        except:
-            continue
-
-        stocks.append({
-            "symbol": symbol,
-            "volume": volume,
-            "price": price
-        })
-
-    stocks = sorted(
-        stocks,
-        key=lambda x: x["volume"],
-        reverse=True
-    )
-
-    return stocks[:25]
-
 
 def get_stock_quote(symbol):
 
@@ -112,9 +44,55 @@ def get_stock_quote(symbol):
 
     return {
         "symbol": symbol,
-        "volume": data["securityWiseDP"]["quantityTraded"],
-        "price": data["priceInfo"]["lastPrice"]
+        "volume": float(
+            str(
+                data["securityWiseDP"]["quantityTraded"]
+            ).replace(",", "")
+        ),
+        "price": float(
+            str(
+                data["priceInfo"]["lastPrice"]
+            ).replace(",", "")
+        )
     }
+
+
+def get_top_volume_gainers():
+
+    session = requests.Session()
+
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+        "Referer": "https://www.nseindia.com/"
+    }
+
+    session.get(
+        "https://www.nseindia.com/",
+        headers=headers,
+        timeout=30
+    )
+
+    response = session.get(
+        "https://www.nseindia.com/api/live-analysis-volume-gainers",
+        headers=headers,
+        timeout=30
+    )
+
+    response.raise_for_status()
+
+    data = response.json()
+
+    stocks = []
+
+    for item in data.get("data", []):
+
+        symbol = item.get("symbol")
+
+        if symbol:
+            stocks.append(symbol)
+
+    return stocks[:25]
 
 
 def send_email(df):
@@ -152,22 +130,33 @@ def send_email(df):
     print("Email sent successfully")
 
 
-# MORNING SCAN
+# ---------------- MORNING ---------------- #
 
 if SCAN_TYPE == "morning":
 
     print("Running MORNING scan...")
 
-    stocks = get_nse_data()
+    symbols = get_top_volume_gainers()
 
     morning_data = {}
 
-    for stock in stocks:
+    for symbol in symbols:
 
-        morning_data[stock["symbol"]] = {
-            "volume": stock["volume"],
-            "price": stock["price"]
-        }
+        try:
+
+            stock = get_stock_quote(symbol)
+
+            morning_data[symbol] = {
+                "volume": stock["volume"],
+                "price": stock["price"]
+            }
+
+            print(f"Saved {symbol}")
+
+        except Exception as e:
+
+            print(f"Failed {symbol}")
+            print(e)
 
     with open(DATA_FILE, "w") as f:
         json.dump(morning_data, f)
@@ -175,7 +164,7 @@ if SCAN_TYPE == "morning":
     print(f"Morning data saved ({len(morning_data)} stocks)")
 
 
-# EVENING SCAN
+# ---------------- EVENING ---------------- #
 
 else:
 
@@ -200,9 +189,11 @@ else:
 
             evening_lookup[symbol] = get_stock_quote(symbol)
 
+            print(f"Fetched {symbol}")
+
         except Exception as e:
 
-            print(f"Failed: {symbol}")
+            print(f"Failed {symbol}")
             print(e)
 
     print("Morning count:", len(morning_data))
@@ -223,7 +214,9 @@ else:
         morning_price = morning["price"]
         evening_price = evening["price"]
 
-        volume_difference = evening_volume - morning_volume
+        volume_difference = (
+            evening_volume - morning_volume
+        )
 
         if morning_price > 0:
 
