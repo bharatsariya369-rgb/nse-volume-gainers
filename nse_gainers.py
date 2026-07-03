@@ -17,6 +17,7 @@ NSE_URL = "https://www.nseindia.com/api/live-analysis-volume-gainers"
 
 
 def get_nse_data():
+def get_stock_quote(symbol):
 
     session = requests.Session()
 
@@ -32,55 +33,23 @@ def get_nse_data():
         timeout=30
     )
 
+    url = f"https://www.nseindia.com/api/quote-equity?symbol={symbol}"
+
     response = session.get(
-        NSE_URL,
+        url,
         headers=headers,
         timeout=30
     )
 
     response.raise_for_status()
 
-    raw = response.json()
+    data = response.json()
 
-    stocks = []
-
-    for item in raw.get("data", []):
-
-        symbol = item.get("symbol")
-
-        volume = (
-            item.get("todayVolume")
-            or item.get("volume")
-            or 0
-        )
-
-        price = (
-            item.get("ltp")
-            or item.get("lastPrice")
-            or item.get("closePrice")
-            or 0
-        )
-
-        try:
-            volume = float(str(volume).replace(",", ""))
-            price = float(str(price).replace(",", ""))
-        except:
-            continue
-
-        stocks.append({
-            "symbol": symbol,
-            "volume": volume,
-            "price": price
-        })
-
-    stocks = sorted(
-        stocks,
-        key=lambda x: x["volume"],
-        reverse=True
-    )
-
-    return stocks[:25]
-
+    return {
+        "symbol": symbol,
+        "volume": data["securityWiseDP"]["quantityTraded"],
+        "price": data["priceInfo"]["lastPrice"]
+    }
 
 def send_email(df):
 
