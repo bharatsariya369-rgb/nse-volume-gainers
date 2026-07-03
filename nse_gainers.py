@@ -151,6 +151,9 @@ else:
         with open(DATA_FILE, "r") as f:
             morning_data = json.load(f)
 
+print("Morning symbols:")
+print(list(morning_data.keys()))
+
     except Exception as e:
 
         print("Morning data not found")
@@ -163,6 +166,9 @@ else:
 
     for stock in evening_stocks:
         evening_lookup[stock["symbol"]] = stock
+
+print("Evening symbols:")
+print(list(evening_lookup.keys()))
 
     print("Morning count:", len(morning_data))
     print("Evening count:", len(evening_lookup))
