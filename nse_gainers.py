@@ -129,7 +129,16 @@ else:
         print(e)
         exit()
 
-    evening_stocks = get_nse_data()
+    evening_lookup = {}
+
+    for symbol in morning_data.keys():
+
+    try:
+        evening_lookup[symbol] = get_stock_quote(symbol)
+
+    except Exception as e:
+        print(f"Failed: {symbol}")
+        print(e)
 
     evening_lookup = {}
 
